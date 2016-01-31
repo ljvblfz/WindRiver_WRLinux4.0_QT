@@ -1,0 +1,32 @@
+qt-bugs@ issue : N157931
+Trolltech task ID : 157932
+bugs.kde.org number : none
+applied: no
+author: ralf.habacker@freenet.de
+http://www.trolltech.com/developer/task-tracker/index_html?id=157932&method=entry
+
+Index: qmake/generators/win32/mingw_make.cpp
+===================================================================
+--- qmake/generators/win32/mingw_make.cpp	(Revision 2093)
++++ qmake/generators/win32/mingw_make.cpp	(Arbeitskopie)
+@@ -230,9 +230,8 @@
+         QString destDir = "";
+         if(!project->first("DESTDIR").isEmpty())
+             destDir = Option::fixPathToTargetOS(project->first("DESTDIR") + Option::dir_sep, false, false);
+-        project->values("MINGW_IMPORT_LIB").prepend(destDir + "lib" + project->first("TARGET")
+-                                                         + project->first("TARGET_VERSION_EXT") + ".a");
+-	project->values("QMAKE_LFLAGS").append(QString("-Wl,--out-implib,") + project->first("MINGW_IMPORT_LIB"));
++        project->values("MINGW_IMPORT_LIB").prepend(destDir + project->first("TARGET")
++                                               + project->first("TARGET_VERSION_EXT") + ".dll.a"); 	project->values("QMAKE_LFLAGS").append(QString("-Wl,--out-implib,") + project->first("MINGW_IMPORT_LIB"));
+     }
+ 
+     if(!project->values("DEF_FILE").isEmpty())
+@@ -276,6 +275,8 @@
+         project->values("TARGET").first() =  "lib" + project->first("TARGET");
+     } else {
+         Win32MakefileGenerator::fixTargetExt();
++        if (project->isActiveConfig("shared") && project->first("TEMPLATE") == "lib")
++            project->values("TARGET").first() =  "lib" + project->first("TARGET");
+     }
+ }
+ 

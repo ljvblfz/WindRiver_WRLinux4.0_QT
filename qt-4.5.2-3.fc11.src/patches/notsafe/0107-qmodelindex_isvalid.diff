@@ -1,0 +1,33 @@
+qt-bugs@ issue: 84161
+Trolltech task ID : 84307
+applied: no
+author: raabe
+
+QModelIndex::isValid() does not check whether it's row value is lower than
+the total number of rows of the parent item. This means that it's possible
+to construct a QModelIndex for e.g. row five even if the parent item has
+only three rows, and yet QModelIndex::isValid() returns true.
+
+Index: src/corelib/kernel/qabstractitemmodel.h
+===================================================================
+--- src/corelib/kernel/qabstractitemmodel.h	(revision 455040)
++++ src/corelib/kernel/qabstractitemmodel.h	(working copy)
+@@ -48,7 +48,7 @@
+     inline QModelIndex sibling(int row, int column) const;
+     inline QModelIndex child(int row, int column) const;
+     inline const QAbstractItemModel *model() const { return m; }
+-    inline bool isValid() const { return (r >= 0) && (c >= 0) && (m != 0); }
++    inline bool isValid() const;
+     inline bool operator==(const QModelIndex &other) const
+         { return (other.r == r && other.c == c && other.p == p && other.m == m); }
+     inline bool operator!=(const QModelIndex &other) const
+@@ -244,6 +244,9 @@
+ inline QModelIndex QAbstractItemModel::createIndex(int arow, int acolumn, int aid) const
+ { return QModelIndex(arow, acolumn, reinterpret_cast<void*>(aid), this); }
+ 
++inline bool QModelIndex::isValid() const
++{  return (r >= 0) && (c >= 0) && (m != 0) && (r < m->rowCount(parent())); }
++
+ class Q_CORE_EXPORT QAbstractTableModel : public QAbstractItemModel
+ {
+     Q_OBJECT

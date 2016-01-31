@@ -1,0 +1,147 @@
+qt-bugs@ issue : none
+Trolltech task ID : none
+applied: no
+author: Adam Treat <treat@kde.org>
+
+When a sourceModel is updating the persistent index via
+QAbstractItemModel::changePersistentIndex(...), make sure any proxy models
+are updated too otherwise the proxy will have an incorrect persistent index
+list causing crashes.  Adds two public signals to QAbstractItemModel, because
+third party proxies that inherit from QAbstactProxyModel will want to catch
+the signals and update accordingly also.
+
+Index: src/corelib/kernel/qabstractitemmodel.cpp
+===================================================================
+--- src/corelib/kernel/qabstractitemmodel.cpp	(revision 555325)
++++ src/corelib/kernel/qabstractitemmodel.cpp	(working copy)
+@@ -1934,6 +1934,7 @@
+             break;
+         }
+     }
++    emit persistentIndexChanged(from, to);
+ }
+
+ /*!
+@@ -1961,6 +1962,7 @@
+             }
+         }
+     }
++    emit persistentIndexListChanged(from, to);
+ }
+
+ /*!
+Index: src/corelib/kernel/qabstractitemmodel.h
+===================================================================
+--- src/corelib/kernel/qabstractitemmodel.h	(revision 555325)
++++ src/corelib/kernel/qabstractitemmodel.h	(working copy)
+@@ -190,6 +190,9 @@
+     void headerDataChanged(Qt::Orientation orientation, int first, int last);
+     void layoutChanged();
+
++    void persistentIndexChanged(const QModelIndex &from, const QModelIndex &to);
++    void persistentIndexListChanged(const QModelIndexList &from, const QModelIndexList &to);
++
+ #if !defined(Q_MOC_RUN) && !defined(qdoc)
+ private: // can only be emitted by QAbstractItemModel
+ #endif
+Index: src/gui/itemviews/qsortfilterproxymodel.cpp
+===================================================================
+--- src/gui/itemviews/qsortfilterproxymodel.cpp	(revision 555325)
++++ src/gui/itemviews/qsortfilterproxymodel.cpp	(working copy)
+@@ -29,6 +29,7 @@
+ #include <qsize.h>
+ #include <qdebug.h>
+ #include <qdatetime.h>
++#include <qbitarray.h>
+ #include <private/qabstractitemmodel_p.h>
+ #include <private/qabstractproxymodel_p.h>
+
+@@ -134,6 +135,9 @@
+
+     void _q_sourceReset();
+
++    void _q_changePersistentIndex(const QModelIndex &from, const QModelIndex &to);
++    void _q_changePersistentIndexList(const QModelIndexList &from, const QModelIndexList &to);
++
+     void clear_mapping();
+ };
+
+@@ -171,6 +175,53 @@
+     }
+ }
+
++void QSortFilterProxyModelPrivate::_q_changePersistentIndex(const QModelIndex &from, const QModelIndex &to)
++{
++    Q_Q(QSortFilterProxyModel);
++    QModelIndex proxy_from = source_to_proxy(from);
++    QModelIndex proxy_to = QModelIndex();
++
++    QList<QPersistentModelIndexData*> persistentIndexes = persistent.indexes;
++    for (int i = 0; i < persistentIndexes.count(); ++i) {
++        if (persistentIndexes.at(i)->index == proxy_from) {
++            create_mapping(to.parent());
++            proxy_to = source_to_proxy(to);
++            persistentIndexes.at(i)->index = proxy_to;
++            break;
++        }
++    }
++    emit q->persistentIndexChanged(proxy_from, proxy_to);
++}
++
++void QSortFilterProxyModelPrivate::_q_changePersistentIndexList(const QModelIndexList &from, const QModelIndexList &to)
++{
++    Q_Q(QSortFilterProxyModel);
++
++    QModelIndexList proxy_from_list = QModelIndexList();
++    QModelIndexList proxy_to_list = QModelIndexList();
++
++    QList<QPersistentModelIndexData*> persistentIndexes = persistent.indexes;
++    QBitArray changed(persistentIndexes.count());
++    for (int i = 0; i < from.count(); ++i) {
++        for (int j = 0; j < persistentIndexes.count(); ++j) {
++
++            QModelIndex proxy_from = source_to_proxy(from.at(i));
++            QModelIndex proxy_to = QModelIndex();
++
++            if (!changed.at(j) && persistentIndexes.at(j)->index == proxy_from) {
++                create_mapping(to.at(i).parent());
++                proxy_to = source_to_proxy(to.at(i));
++                persistentIndexes.at(j)->index = proxy_to;
++                changed.setBit(j);
++                proxy_from_list.append(proxy_from);
++                proxy_to_list.append(proxy_to);
++                break;
++            }
++        }
++    }
++    emit q->persistentIndexListChanged(proxy_from_list, proxy_to_list);
++}
++
+ IndexMap::const_iterator QSortFilterProxyModelPrivate::create_mapping(
+     const QModelIndex &source_parent) const
+ {
+@@ -571,6 +622,11 @@
+
+         connect(d->model, SIGNAL(modelReset()), this, SLOT(_q_sourceReset()));
+         connect(d->model, SIGNAL(layoutChanged()), this, SLOT(clear()));
++
++        connect(d->model, SIGNAL(persistentIndexChanged(QModelIndex,QModelIndex)),
++                this, SLOT(_q_changePersistentIndex(QModelIndex,QModelIndex)));
++        connect(d->model, SIGNAL(persistentIndexListChanged(QModelIndexList,QModelIndexList)),
++                this, SLOT(_q_changePersistentIndexList(QModelIndexList,QModelIndexList)));
+     }
+
+     d->clear_mapping();
+Index: src/gui/itemviews/qsortfilterproxymodel.h
+===================================================================
+--- src/gui/itemviews/qsortfilterproxymodel.h	(revision 555325)
++++ src/gui/itemviews/qsortfilterproxymodel.h	(working copy)
+@@ -129,6 +129,8 @@
+     Q_PRIVATE_SLOT(d_func(), void _q_sourceLayoutAboutToBeChanged(const QModelIndex &source_parent))
+     Q_PRIVATE_SLOT(d_func(), void _q_sourceLayoutChanged())
+     Q_PRIVATE_SLOT(d_func(), void _q_sourceReset())
++    Q_PRIVATE_SLOT(d_func(), void _q_changePersistentIndex(const QModelIndex &from, const QModelIndex &to))
++    Q_PRIVATE_SLOT(d_func(), void _q_changePersistentIndexList(const QModelIndexList &from, const QModelIndexList &to))
+ };
+
+ QT_END_HEADER

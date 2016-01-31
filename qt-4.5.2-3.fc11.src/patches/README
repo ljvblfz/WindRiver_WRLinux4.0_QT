@@ -1,0 +1,40 @@
+Please assign the numbers incrementally, and don't reuse them. The next one:
+#0285
+
+This directory contains patches for Qt that haven't been accepted by TrollTech
+yet. All patches in this directory itself shouldn't make qt-copy incompatible
+to official Qt, patches adding new API etc. belong to the notsafe/
+subdirectory.
+
+When adding new patches, use the same naming scheme for naming the patch file,
+i.e. <next available number>-<some suitable name>.<patch extension>.
+The number is used to order applying of the patches in the apply_patches
+script, in case they depend on each other. The extension should be either
+".diff" or ".patch". Also, include the following header:
+
+qt-bugs@ issue : <number>
+Trolltech task ID : <number>
+bugs.kde.org number : <number>
+applied: <no/yes>
+author: <who to blame for the thing :) >
+os: <unix | win> (optional: os on which the patch schould be applied)
+<description of the patch - the qt-bugs@ mail will do>
+
+The patch should be created from the toplevel directory, so that
+'patch -p0' in the toplevel directory can apply it.
+
+If you want to include more information that shouldn't be in the patch
+itself, create another file with the same file name, just use a different
+extension. E.g. if you want to include whole qt-copy@ mail, but the mail
+contains two patches and you want only one of them to be applied, put
+the mail in 1234-mypatch.txt, and in file 1234-mypatch.diff put only
+the header, perhaps very short description, and the patch to be applied.
+
+The apply_patches script will apply patches that have 'applied: no'
+in the header (first 5 lines). When adding a new patch, you should apply it
+to qt-copy (in SVN) only if it's a bugfix - optimizations, new features etc.
+shouldn't be applied, so that people need to apply those patches explicitly
+by running the apply_patches script, and will be aware of the fact that their
+qt build differs from the official Qt.
+
+Lubos Lunak <l.lunak@kde.org>
